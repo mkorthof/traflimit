@@ -7,7 +7,6 @@
 
 # Requires:	"vnstat" and *optionally* "screen"
 # Source:	https://www.besttechie.com/forums/topic/33745-linux-bandwidth-monitoring-script/
-# 		modifcations by tazzy (mail alerts)
 
 AGREE=""
 
@@ -169,7 +168,7 @@ if [ "$POLLMETHOD" = "screen" ]; then
 fi
 
 if [ "$POLLMETHOD" = "cron" ]; then
-	for i in {1..${CRONMAX}}; do
+	for i in $( seq 1 $CRONMAX ); do
 		if [ "$i" -gt 1 ]; then sleep $INTERVAL; fi
 		getusage
 	done
