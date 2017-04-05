@@ -120,10 +120,6 @@ runcmdas() {
 	EXITCODE="$?"; if [ "$EXITCODE" -ne 0 ]; then logevent "ERROR: exit code \"$EXITCODE\" while running $1"; fi
 }
 
-#DEBUG
-#runcmdas "--help; whoami"
-#exit 0
-
 if [ $( id -u ) -ne 0 ]; then echo "[$( date +%F\ %T )] ERROR: Please run this script as root."; exit 1
 elif [ "$( whereis vnstat )" == "vnstat:" ]; then logevent "ERROR: It appears that you do not have \"vnstat\" installed. Please install this package and restart."; exit 1
 elif [ "$UPDATEMETHOD" = "vnstatd" ] && [ ! "$( pgrep vnstatd )" ]; then logevent "ERROR: It appears that \"vnstatd\" is not running."
