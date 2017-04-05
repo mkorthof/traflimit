@@ -121,6 +121,9 @@ runcmdas() {
 }
 
 if [ $( id -u ) -ne 0 ]; then echo "[$( date +%F\ %T )] ERROR: Please run this script as root."; exit 1
+elif [ "$AGREE" != "YES" ]; then logevent "INFO: Please make sure you understand what this script does, read the header and check that ${BOLD}\$MAXRUNACT${SGR0} is set correctly."
+	logevent "When you have reached the maximum amount of traffic ${BOLD}\$MAX${SGR0} the ${BOLD}\$MAXRUNACT${SGR0} default is: ${SMUL}run iptables to allow only ssh traffic${RMUL}."
+	logevent "To confirm please set ${BOLD}\$AGREE${SGR0} to \"${BOLD}YES${SGR0}\" and restart."; exit 0
 elif [ "$( whereis vnstat )" == "vnstat:" ]; then logevent "ERROR: It appears that you do not have \"vnstat\" installed. Please install this package and restart."; exit 1
 elif [ "$UPDATEMETHOD" = "vnstatd" ] && [ ! "$( pgrep vnstatd )" ]; then logevent "ERROR: It appears that \"vnstatd\" is not running."
 	logevent "Please make sure it is started first or change ${BOLD}\$POLLMETHOD${SGR0} to \"vnstat-u\" and then rerun this script."; exit 1
@@ -130,9 +133,6 @@ elif [[ ! "$POLLMETHOD" =~ ^(screen|job|cron|foreground)$ ]]; then logevent "ERR
 elif [ "$RUNCMD" = "sudo" ]; then sudo -l vnstat >/dev/null 2>&1 || { logevent "ERROR: Unable to run sudo vnstat. Please check your sudo config or change ${BOLD}\$RUNCMD${SGR0} to \"su\" or \"none\"."; exit 1; }
 elif [ "$INTERFACE" = "" ]; then logevent "ERROR: You have not defined the interface network (${BOLD}\$INTERFACE${SGR0}) that you want to monitor. Please define this and restart."; exit 1
 elif [ $MAX == "" ]; then logevent "ERROR: The maximum monthly traffic level (${BOLD}\$MAX${SGR0}) has not been defined. Please define this and restart."; exit 1
-elif [ "$AGREE" != "YES" ]; then logevent "INFO: Please make sure you understand what this script does, read the header and check that ${BOLD}\$MAXRUNACT${SGR0} is set correctly."
-	logevent "When you have reached the maximum amount of traffic ${BOLD}\$MAX${SGR0} the ${BOLD}\$MAXRUNACT${SGR0} default is: ${SMUL}run iptables to allow only ssh traffic${RMUL}."
-	logevent "To confirm please set ${BOLD}\$AGREE${SGR0} to \"${BOLD}YES${SGR0}\" and restart."; exit 0
 elif [ -s $PIDFILE ]; then
 	if [ "$( pgrep -F $PIDFILE 2>/dev/null )" ]; then
 			PSINFO="$( pgrep -F $PIDFILE | xargs --no-run-if-empty ps -ho user,pid,tty,start,cmd -p | sed 's/  */ /g' )";
