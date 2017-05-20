@@ -1,12 +1,14 @@
 # Traffic Limit (traflimit)
-## Limits amount of bandwidth that can be used by your host/vps/vm
+### Limits amount of bandwidth that can be used by your host/vps/vm
 
 This script will help you limit the amount of bandwidth that you consume so that you can predict/budget bandwidth fees while using services such as AWS, MS Azure, RackSpace Cloud etc which bill based on bandwidth utilization.
 
 * ***Work in progress!***
 * read script headers for details
+* script is fully configurable
+* besides from cron it can run as daemon, screen, in foreground
+* sends email  and/or runs custom action(s) (commands, other scripts etc) if traffic limit is hit
 * includes ```bashmail.sh``` script, a small sendmail drop in replacement using... Bash :)
-* final script should be finished soon (few weeks max.)
 
 ## Installation:
 1) Configure options in ```traflimit.sh```
