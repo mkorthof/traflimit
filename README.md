@@ -1,5 +1,5 @@
 # Traffic Limit (traflimit)
-Limit's amount of bandwidth that can be used by your host/vps/vm
+Limits amount of bandwidth that can be used by your host/vps/vm
 
 * ***Work in progress!***
 * read script headers for details
