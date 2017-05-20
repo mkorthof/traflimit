@@ -7,7 +7,7 @@ This script will help you limit the amount of bandwidth that you consume so that
 * read script headers for details
 * script is fully configurable
 * besides from cron it can run as daemon, screen, in foreground
-* sends email  and/or runs custom action(s) (commands, other scripts etc) if traffic limit is hit
+* sends email  and/or runs custom action(s) if traffic limit is hit (commands, other scripts etc) 
 * includes ```bashmail.sh``` script, a small sendmail drop in replacement using... Bash :)
 
 ## Installation:
