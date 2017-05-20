@@ -23,56 +23,51 @@
 ############################################################################# 
 
 #############################################################################
-# 20170315 MK bashmail
+# 20170519 MK: bashmail.sh
 # Changes: added stdin input, ssl/tls support
+# Dependencies: base64 (openssl, nc)
 #############################################################################
 
-################################################## 
-## Dependencies: base64, nc 
-## VARIABLES CONFIGURABLES 
-################################################## 
-
-auth=1
-
-################################################## 
-# Example 1: no tls, plain text user/passwd)
-################################################## 
-#HOSTNAME="mydomain.com" 
-#smtpsrv="smtp.mydomain.com" 
-#smtpport="25" 
-#smtpusr="$( echo -ne me@mydomain.com | base64 )" 
-#smtppwd="$( echo -ne m\|passw0rd | base64 )" 
-#mailfrom="me@mydomain.com" 
-#mailto="me.myself@mydomain.com" 
-#subject="HELLO AGAIN" 
-
-################################################## 
-# Example 2: starttls, base64 user/passwd from file
-# The file ~/.mail contains 2 variables:
-# user=dXNlcgo=
-# password=cGFzc3dkCg==
-################################################## 
-starttls=1
-smtpsrv="smtp.example.com"
-smtpport="587" 
-source ~user/.mail
-smtpusr=$( echo -n $user )
-smtppwd=$( echo -n $password )
-mailfrom="traflimit@example.com"
 mailto="$1"
 subject="$2"
 body="$3"
+debug=0
 
+################################################## 
+## CONFIGURATION VARIABLES
+################################################## 
+
+#smtpsrv="smtp.mydomain.com" 
+#HOSTNAME="mydomain.com" 
+#mailto="me.myself@mydomain.com" 
+#mailfrom="me@mydomain.com" 
+#subject="HELLO AGAIN" 
 html=0
 
+# set auth to 1 to enable authenticaton by username/password
+auth=1
+
+## use no tls, auth using plain text user/password:
+#smtpport="25" 
+#smtpusr="$( echo -ne me@mydomain.com | base64 )" 
+#smtppwd="$( echo -ne mypassw0rd | base64 )" 
+
+## use starttls, read base64 user/password from file:
+# use port 25, 465 or 589
+# create a file .mail containing 2 variables, for example:
+# user=yu2otDJ==
+# password=9OTafrRe=
+starttls=1
+smtpport="587"
+source ~user/.mail
+smtpusr=$( echo -n $user )
+smtppwd=$( echo -n $password )
 
 ################################################## 
-## FINAL DE VARIABLES CONFIGURABLES 
+## END OF CONFIGURATION
 ################################################## 
 
-#newline=$'\012' 
-
-function err_exit() { echo -e 1>&2; exit 1; } 
+err_exit() { echo -e 1>&2; exit 1; } 
 
 if [ ! $smtpsrv ]; then echo; echo \$smtpsrv missing!; err_exit; fi
 if [ ! $smtpport ]; then echo; echo \$smtpport missing!; err_exit; fi
@@ -80,57 +75,60 @@ if [ ! $smtpusr ]; then echo; echo \$smtpusr missing!; err_exit; fi
 if [ ! $smtppwd ]; then echo; echo \$smtppwd missing!; err_exit; fi
 if [ ! $mailfrom ]; then echo; echo \$mailfrom missing!; err_exit; fi
 
-gotmsg=0
-if [ "$mailto" = "" ]; then echo; echo "$0 <address>"; err_exit; else message="$( cat )"; gotmsg=1; fi
+run_sclient() {
+  cmd="openssl s_client -connect ${smtpsrv}:${smtpport}"
+  if [ "$debug" == 0 ]; then
+    $cmd $@ "-quiet" >/dev/null 2>&1
+  else 
+    $cmd $@
+  fi
+  if [ "$?" != 0 ]; then err_exit; fi
+}
+
+stdin=255
+if [ "$mailto" ] && [ "$subject" ] && [ "$body" ]; then
+  stdin=0
+else
+  if [ "$mailto" = "" ]; then
+    echo; echo "$0 <address>"; err_exit;
+  else
+    stdin=1
+    body="$( cat )"
+  fi
+fi
 
 mail_input() { 
   sleep 2
-  echo "helo ${HOSTNAME}" 
-  echo "ehlo ${HOSTNAME}" 
-  if [ $auth -eq 1 ]; then
-    echo "AUTH LOGIN" 
-    echo "${smtpusr}" 
-    echo "${smtppwd}" 
-  fi
+  echo "helo ${HOSTNAME}" || echo "ehlo ${HOSTNAME}" 
+  if [ $auth -eq 1 ]; then echo "AUTH LOGIN"; echo "${smtpusr}"; echo "${smtppwd}"; fi
   echo "MAIL FROM:<${mailfrom}>"
   echo "RCPT TO:<${mailto}>"
   echo "DATA"
   if [ $html -eq 1 ]; then echo "Content-type: text/html"; fi
-  if [ $gotmsg -eq 0 ]; then
+  if [ $stdin -eq 0 ]; then
     echo "From: <${mailfrom}>"
     echo "To: <${mailto}>"
     echo "Subject: ${subject}"
     echo
-    sleep 1
-    echo "${body}"
-  else
-    sleep 1
-    echo "$message"
   fi
+  sleep 1
+  echo -e "${body}"
   echo -e "\r\n.\r\nQUIT"
   sleep 1
 } 
 
-# You may directly send the protocol conversation via TCP 
+# You may directly send the protocol conversation via TCP:
 # mail_input > /dev/tcp/$smtpsrv/$smtpport || err_exit 
 
 # If you have nc (netcat) available in your system this 
-# will offer you the protocol conversation on screen 
-
+# will offer you the protocol conversation on screen:
 # mail_input | nc $smtpsrv $smtpport || err_exit 
 
 # If on addition you have OpenSSL you can send your e-mail under TLS 
 
 if [ $smtpport -eq 25 ]; then
-  if [ $starttls -eq 0 ]; then
-    # telnet
-    mail_input | telnet ${smtpsrv} ${smtpport} || err_exit
-  else
-    mail_input | openssl s_client -starttls smtp -connect ${smtpsrv}:${smtpport} -quiet || err_exit
-  fi
-# TODO: test SSL 465
-elif [ $smtpport -eq 465 ]; then
-  mail_input | openssl s_client -connect ${smtpsrv}:${smtpport} -quiet || err_exit
-elif [ $smtpport -eq 587 ]; then
-  mail_input | openssl s_client -starttls smtp -connect ${smtpsrv}:${smtpport} -quiet >/dev/null 2>&1 || err_exit
+  if [ $starttls -eq 0 ]; then mail_input | telnet ${smtpsrv} ${smtpport} || err_exit # telnet
+  else mail_input | run_sclient -starttls smtp || err_exit; fi # openssl starttls
+elif [ $smtpport -eq 465 ]; then mail_input | run_sclient || err_exit # openssl
+elif [ $smtpport -eq 587 ]; then mail_input | run_sclient -starttls smtp || err_exit # openssl starttls
 fi
