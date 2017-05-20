@@ -1,5 +1,7 @@
 # Traffic Limit (traflimit)
-Limits amount of bandwidth that can be used by your host/vps/vm
+## Limits amount of bandwidth that can be used by your host/vps/vm
+
+This script will help you limit the amount of bandwidth that you consume so that you can predict/budget bandwidth fees while using services such as AWS, MS Azure, RackSpace Cloud etc which bill based on bandwidth utilization.
 
 * ***Work in progress!***
 * read script headers for details
