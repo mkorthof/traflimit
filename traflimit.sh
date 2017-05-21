@@ -24,8 +24,7 @@ RUNCMD="sudo"
 
 # Mail Transfer Agent. A lightweight send-only MTA such as SSMTP should work fine. Or leave empty to disable sending mail.
 # If you do not have a MTA installed you can use the included "bashmail.sh" script. Default is "/usr/sbin/sendmail"
-#MTA="/usr/sbin/sendmail"
-#MTA="/home/silver/src/traflimit/bashmail.sh"
+MTA="/usr/sbin/sendmail"
 
 # E-mail adress to receive notifications
 RCPTTO="admin@example.com"
@@ -54,6 +53,7 @@ CRONMAX="2"
 MAXRUNACT='(
   echo "DEBUG: MAXRUNACT";
   logevent "DEBUG: Now i would have flushed iptables, stopped network or run shutdown..."
+  sleep 360
   exit 0
 )'
 
@@ -112,12 +112,11 @@ getusage() {
         INCOMING=$( echo $DATA | cut -d\; -f4 )
         OUTGOING=$( echo $DATA | cut -d\; -f5 )
         TOTUSAGE=$( expr $INCOMING + $OUTGOING )
-
         if [ $TOTUSAGE -ge $MAX ]; then
 		logevent "$( echo ${BOLD}$TOTUSAGE${SGR0}/$MAX )MB of monthly bandwidth has been used ($INTERFACE); bandwidth-saving precautions are being run"
 		mailevent Alert "$( echo $TOTUSAGE/$MAX )MB of monthly bandwidth has been used ($INTERFACE); bandwidth-saving precautions are being run\nAction: $MAXRUNACT"
 		eval "$MAXRUNACT"
-		sleep 900 
+		sleep 900
         else
 		if [ "$POLLMETHOD" = "foreground" ]; then
 			logevent "$( echo ${BOLD}$TOTUSAGE${SGR0}/$MAX )MB of monthly bandwidth has been used ($INTERFACE); system is clear for the time being"
@@ -141,17 +140,16 @@ elif [ "$UPDATEMETHOD" = "vnstat-u" ] && [ "$( pgrep vnstatd )" ]; then logevent
 	logevent "Config not possible, please either disable vnstatd or change ${BOLD}\$POLLMETHOD${SGR0} and then rerun this script."; exit 1
 elif [[ ! "$POLLMETHOD" =~ ^(screen|job|cron|foreground)$ ]]; then logevent "ERROR: No method found to keep the script running. Please define this or run from cron."; exit 1
 elif [ "$RUNCMD" = "sudo" ] && [ ! "$( sudo -l vnstat 2>/dev/null )" ]; then logevent "ERROR: Unable to run sudo vnstat. Please check your sudo config or change ${BOLD}\$RUNCMD${SGR0} to \"su\" or \"none\"."; exit 1
-elif [ "$MTA" != "" ]; then 
- 	if [ ! -x "$MTA" ]; then logevent "ERROR: Sendmail does not exist or is not executable. Please check ${BOLD}\$MTA${SGR0} or leave empty to disable sending mail."; exit 1; fi
-	if [ "$RCPTTO" = "" ]; then logevent "ERROR: Mail receipient (${BOLD}\$RCPTTO${SGR0}) has not been defined. $DEFMSG Leave \$MTA empty to disable sending mail."; exit 1; fi
+elif [ "$MTA" != "" ] && [ ! -x "$MTA" ]; then logevent "ERROR: Sendmail does not exist or not executable. Please check ${BOLD}\$MTA${SGR0} or it leave empty to disable sending mail."; exit 1
+elif [ "$MTA" != "" ] && [ "$RCPTTO" = "" ]; then logevent "ERROR: Mail receipient (${BOLD}\$RCPTTO${SGR0}) has not been defined. $DEFMSG Leave \$MTA empty to disable sending mail."; exit 1
 elif [ "$INTERFACE" = "" ]; then logevent "ERROR: You have not defined the interface network (${BOLD}\$INTERFACE${SGR0}) that you want to monitor. $DEFMSG"; exit 1
-elif [ $MAX == "" ]; then logevent "ERROR: The maximum monthly traffic level (${BOLD}\$MAX${SGR0}) has not been defined. $DEFMSG"; exit 1;
+elif [ $MAX == "" ]; then logevent "ERROR: The maximum monthly traffic level (${BOLD}\$MAX${SGR0}) has not been defined. $DEFMSG"; exit 1
 elif [ -s $PIDFILE ]; then
 	if [ "$( pgrep -F $PIDFILE 2>/dev/null )" ]; then
 		PSINFO="$( pgrep -F $PIDFILE | xargs --no-run-if-empty ps -ho user,pid,tty,start,cmd -p | sed 's/  */ /g' )";
 		logevent "INFO: Already running as: \"$PSINFO\""; exit 0
 	else
-		logevent "INFO: Stale pidfile for PID $( cat $PIDFILE ), deleting $PIDFILE"; rm $PIDFILE
+		logevent "INFO: Stale pidfile, deleting $PIDFILE"; rm $PIDFILE
 	fi
 fi
 echo "$$" > $PIDFILE
