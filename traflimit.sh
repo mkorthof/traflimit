@@ -57,15 +57,15 @@ MAXRUNACT='(
   exit 0
 )'
 
-# MAXRUNACT Examples:
+# Action examples for MAXRUNACT:
 
-# run command:		iptables-restore < /etc/firewall-lockdown.conf
-# run script:		/root/scripts/max_traffic_action_script"
-# iptables flush/drop:	iptables -F; iptables -X; iptables -P INPUT DROP; iptables -P OUTPUT DROP; iptables -P FORWARD DROP
-# iptables ssh only: 	iptables -A INPUT -i lo -j ACCEPT; iptables -A INPUT -p tcp -m tcp --dport 22 -j ACCEPT; iptables -A INPUT -j DROP
-# 			iptables -A OUTPUT -o lo -j ACCEPT; iptables -A OUTPUT -p tcp --sport 22 -m state --state ESTABLISHED -j ACCEPT; iptables -A OUTPUT -j DROP
-# stop network:		/etc/init.d/network* stop || service network stop || service networking stop || systemctl stop network*
-# shutdown:		shutdown -h 5 TrafficLimit hit && sleep 360
+# run command:           /sbin/iptables-restore < /etc/firewall-lockdown.conf
+# run script:            /root/scripts/max_traffic_action_script"
+# iptables flush/drop:   /sbin/iptables -F; iptables -X; /sbin/iptables -P INPUT DROP; /sbin/iptables -P OUTPUT DROP; /sbin/iptables -P FORWARD DROP
+# iptables ssh only:     /sbin/iptables -A INPUT -i lo -j ACCEPT; /sbin/iptables -A INPUT -p tcp -m tcp --dport 22 -j ACCEPT; /sbin/iptables -A INPUT -j DROP
+#                        /sbin/iptables -A OUTPUT -o lo -j ACCEPT; /sbin/iptables -A OUTPUT -p tcp --sport 22 -m state --state ESTABLISHED -j ACCEPT; /sbin/iptables -A OUTPUT -j DROP
+# stop network:          /etc/init.d/network* stop || /usr/sbin/service network stop || /usr/sbin/service networking stop || systemctl stop network*
+# shutdown:              /sbin/shutdown -h 5 TrafficLimit hit && sleep 360
 
 PIDFILE="/var/run/traflimit.pid"
 LOGFILE="/var/log/traflimit.log"
@@ -140,7 +140,7 @@ elif [ "$UPDATEMETHOD" = "vnstat-u" ] && [ "$( pgrep vnstatd )" ]; then logevent
 	logevent "Config not possible, please either disable vnstatd or change ${BOLD}\$POLLMETHOD${SGR0} and then rerun this script."; exit 1
 elif [[ ! "$POLLMETHOD" =~ ^(screen|job|cron|foreground)$ ]]; then logevent "ERROR: No method found to keep the script running. Please define this or run from cron."; exit 1
 elif [ "$RUNCMD" = "sudo" ] && [ ! "$( sudo -l vnstat 2>/dev/null )" ]; then logevent "ERROR: Unable to run sudo vnstat. Please check your sudo config or change ${BOLD}\$RUNCMD${SGR0} to \"su\" or \"none\"."; exit 1
-elif [ "$MTA" != "" ] && [ ! -x "$MTA" ]; then logevent "ERROR: Sendmail does not exist or not executable. Please check ${BOLD}\$MTA${SGR0} or it leave empty to disable sending mail."; exit 1
+elif [ "$MTA" != "" ] && [ ! -x "$MTA" ]; then logevent "ERROR: Sendmail does not exist or is not executable. Please check ${BOLD}\$MTA${SGR0} or it leave empty to disable sending mail."; exit 1
 elif [ "$MTA" != "" ] && [ "$RCPTTO" = "" ]; then logevent "ERROR: Mail receipient (${BOLD}\$RCPTTO${SGR0}) has not been defined. $DEFMSG Leave \$MTA empty to disable sending mail."; exit 1
 elif [ "$INTERFACE" = "" ]; then logevent "ERROR: You have not defined the interface network (${BOLD}\$INTERFACE${SGR0}) that you want to monitor. $DEFMSG"; exit 1
 elif [ $MAX == "" ]; then logevent "ERROR: The maximum monthly traffic level (${BOLD}\$MAX${SGR0}) has not been defined. $DEFMSG"; exit 1
