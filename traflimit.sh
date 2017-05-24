@@ -66,13 +66,13 @@ MAXRUNACT='(
 
 # run command:           /sbin/iptables-restore < /etc/firewall-lockdown.conf
 # run script:            /root/scripts/max_traffic_action_script
-# iptables flush/drop:   /sbin/iptables -F; iptables -X; /sbin/iptables -P INPUT DROP; /sbin/iptables -P OUTPUT DROP; /sbin/iptables -P FORWARD DROP;
+# iptables flush/drop:   /sbin/iptables -F; /sbin/iptables -X; /sbin/iptables -P INPUT DROP; /sbin/iptables -P OUTPUT DROP; /sbin/iptables -P FORWARD DROP;
 # iptables ssh only:     /sbin/iptables -A INPUT -i lo -j ACCEPT; /sbin/iptables -A INPUT -p tcp -m tcp --dport 22 -j ACCEPT; /sbin/iptables -A INPUT -j DROP;
 #                        /sbin/iptables -A OUTPUT -o lo -j ACCEPT; /sbin/iptables -A OUTPUT -p tcp --sport 22 -m state --state ESTABLISHED -j ACCEPT; /sbin/iptables -A OUTPUT -j DROP;
 # stop network:	         /etc/init.d/network* stop || /usr/sbin/service network stop || /usr/sbin/service networking stop || systemctl stop network*;
 # shutdown:              /sbin/shutdown -h 5 TrafficLimit hit && sleep 360;
 
-# usallly not needed:    logevent "INFO: Killing daemon process..."; pkill -9 -F $PIDFILE 2>/dev/null; rm $PIDFILE;
+# usuallly not needed:   logevent "INFO: Killing daemon process..."; pkill -9 -F $PIDFILE 2>/dev/null; rm $PIDFILE;
 
 PIDFILE="/var/run/traflimit.pid"
 LOGFILE="/var/log/traflimit.log"
