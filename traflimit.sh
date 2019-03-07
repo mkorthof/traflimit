@@ -72,7 +72,7 @@ MAXRUNACT='(
 # stop network:	         /etc/init.d/network* stop || /usr/sbin/service network stop || /usr/sbin/service networking stop || systemctl stop network*;
 # shutdown:              /sbin/shutdown -h 5 TrafficLimit hit && sleep 360;
 
-# usuallly not needed:   logevent "INFO: Killing daemon process..."; pkill -9 -F $PIDFILE 2>/dev/null; rm $PIDFILE;
+# usually not needed:    logevent "INFO: Killing daemon process..."; pkill -9 -F $PIDFILE 2>/dev/null; rm $PIDFILE;
 
 PIDFILE="/var/run/traflimit.pid"
 LOGFILE="/var/log/traflimit.log"
