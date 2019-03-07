@@ -48,18 +48,17 @@ html=0  # set to 1 to create html email
 auth=0  # set to 1 to enable user/password auth
 nl="\n" # set newlines (e.g. "\n" or "\r\n")
 
-
 ## Don't use TLS, plaintext user/password auth:
 ################################################## 
-#smtpport="25" 
+smtpport="25" 
 #smtpusr="$( echo -ne me@mydomain.com | base64 )" 
 #smtppwd="$( echo -ne mypassw0rd | base64 )" 
 
 ## Use TLS
 ################################################## 
 # use port 25, 465 or 589 below
-starttls=1
-smtpport="587"
+#starttls=1
+#smtpport="587"
 
 ## Read base64 user/password from file:
 ################################################## 
