@@ -50,6 +50,7 @@ nl="\n" # set newlines (e.g. "\n" or "\r\n")
 
 ## Don't use TLS, plaintext user/password auth:
 ################################################## 
+starttls=0
 smtpport="25" 
 #smtpusr="$( echo -ne me@mydomain.com | base64 )" 
 #smtppwd="$( echo -ne mypassw0rd | base64 )" 
@@ -135,7 +136,7 @@ mail_input() {
 
 # If on addition you have OpenSSL you can send your e-mail under TLS 
 
-if [ $debug -eq 1]; then
+if [ $debug -eq 2 ]; then
   set -x
 fi
 if [ $smtpport -eq 25 ]; then
