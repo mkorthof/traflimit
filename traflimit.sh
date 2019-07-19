@@ -136,6 +136,7 @@ getusage() {
 			if [ $MAXQUIET -ne 1 ]; then
 				logevent "$( echo ${BOLD}$TOTUSAGE${SGR0}/$MAX )MB of monthly bandwidth has been used ($INTERFACE) - Acknowledged"
 				mailevent Ack "$( echo $TOTUSAGE/$MAX )MB of monthly bandwidth has been used ($INTERFACE) - Acknowledged by setting MAXACK to 1\nNo Actions are being run"
+			        sleep 900
 			fi
 		else
 			logevent "$( echo ${BOLD}$TOTUSAGE${SGR0}/$MAX )MB of monthly bandwidth has been used ($INTERFACE); bandwidth-saving precautions are being run"
