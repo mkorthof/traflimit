@@ -130,7 +130,7 @@ getusage() {
         OUTGOING=$( echo $DATA | cut -d\; -f5 )
         TOTUSAGE=$( expr $INCOMING + $OUTGOING )
 #DEBUG:
-#TOTUSAGE=1048577
+##TOTUSAGE=1048577
 	if [ $TOTUSAGE -ge $MAX ]; then
 		if [ $MAXACK -eq 1 ]; then
 			if [ $MAXQUIET -ne 1 ]; then
