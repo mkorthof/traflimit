@@ -130,7 +130,7 @@ getusage() {
         OUTGOING=$( echo $DATA | cut -d\; -f5 )
         TOTUSAGE=$( expr $INCOMING + $OUTGOING )
 #DEBUG:
-##TOTUSAGE=1048577
+#TOTUSAGE=1048577
 	if [ $TOTUSAGE -ge $MAX ]; then
 		if [ $MAXACK -eq 1 ]; then
 			if [ $MAXQUIET -ne 1 ]; then
@@ -141,8 +141,8 @@ getusage() {
 			logevent "$( echo ${BOLD}$TOTUSAGE${SGR0}/$MAX )MB of monthly bandwidth has been used ($INTERFACE); bandwidth-saving precautions are being run"
 			mailevent Alert "$( echo $TOTUSAGE/$MAX )MB of monthly bandwidth has been used ($INTERFACE); bandwidth-saving precautions are being run\nAction: $MAXRUNACT"
 			eval "$MAXRUNACT"
+			sleep 900
 		fi
-		sleep 900
 	else
 		if [ "$POLLMETHOD" = "foreground" ]; then
 			logevent "$( echo ${BOLD}$TOTUSAGE${SGR0}/$MAX )MB of monthly bandwidth has been used ($INTERFACE); system is clear for the time being"
