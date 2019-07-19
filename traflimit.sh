@@ -10,7 +10,7 @@
 
 AGREE=""
 
-# Maximum amount of bandwidth (megabytes) that you want to consume in a given month before anti-overage commands are run
+# Maximum amount of bandwidth (megabytes) that you want to consume in a given month before anti-overusage commands are run
 MAX=1048576
 
 # Interface that you would like to monitor (typically "eth0")
@@ -23,7 +23,7 @@ INTERFACE="eth0"
 RUNAS="vnstat"
 
 # How to run as another user: "su", "sudo" or "none" (default is "su")
-RUNCMD="sudo"
+RUNCMD="su"
 
 # Mail Transfer Agent. A lightweight send-only MTA such as SSMTP should work fine. Or leave empty to disable sending mail.
 # If you do not have a MTA installed you can use the included "bashmail.sh" script. Default is "/usr/sbin/sendmail"
@@ -52,27 +52,35 @@ INTERVAL="30"
 CRONMAX="2"
 
 # Action to perform when hitting max traffic limit. For example: flush iptables, stop network or shutdown.
-# Make sure you set this correctly. Default is: run iptables to allow only ssh traffic (!)
+# Make sure you set this correctly. Default is: wait 60 sec then run iptables to allow only ssh traffic (!)
 MAXRUNACT='(
   sleep 60;
-  echo "DEBUG: MAXRUNACT";
-  logevent "DEBUG: Now i would have flushed iptables, stopped network or run shutdown...":
-  sleep 360;
+  /sbin/iptables-restore < /etc/firewall-lockdown.conf
+  /root/scripts/max_traffic_action_script
+  /sbin/iptables -F; /sbin/iptables -X; /sbin/iptables -P INPUT DROP; /sbin/iptables -P OUTPUT DROP; /sbin/iptables -P FORWARD DROP;
+  /sbin/iptables -A INPUT -i lo -j ACCEPT; /sbin/iptables -A INPUT -p tcp -m tcp --dport 22 -j ACCEPT; /sbin/iptables -A INPUT -j DROP;
+  /sbin/iptables -A OUTPUT -o lo -j ACCEPT; /sbin/iptables -A OUTPUT -p tcp --sport 22 -m state --state ESTABLISHED -j ACCEPT; /sbin/iptables -A OUTPUT -j DROP;
+  /etc/init.d/network* stop || /usr/sbin/service network stop || /usr/sbin/service networking stop || systemctl stop network*;
+  /sbin/shutdown -h 5 TrafficLimit hit && sleep 360;
   exit 0
 )'
 
+# Examples 'MAXRUNACT':
+# - run command:           /sbin/iptables-restore < /etc/firewall-lockdown.conf
+# - run script:            /root/scripts/max_traffic_action_script
+# - iptables flush/drop:   /sbin/iptables -F; /sbin/iptables -X; /sbin/iptables -P INPUT DROP; /sbin/iptables -P OUTPUT DROP; /sbin/iptables -P FORWARD DROP;
+# - iptables ssh only:     /sbin/iptables -A INPUT -i lo -j ACCEPT; /sbin/iptables -A INPUT -p tcp -m tcp --dport 22 -j ACCEPT; /sbin/iptables -A INPUT -j DROP;
+#                          /sbin/iptables -A OUTPUT -o lo -j ACCEPT; /sbin/iptables -A OUTPUT -p tcp --sport 22 -m state --state ESTABLISHED -j ACCEPT; /sbin/iptables -A OUTPUT -j DROP;
+# - stop network:          /etc/init.d/network* stop || /usr/sbin/service network stop || /usr/sbin/service networking stop || systemctl stop network*;
+# - shutdown:              /sbin/shutdown -h 5 TrafficLimit hit && sleep 360;
+# - kill self:             logevent "INFO: Killing daemon process..."; pkill -9 -F $PIDFILE 2>/dev/null; rm $PIDFILE;
+# ( should not be needed )
 
-# MAXRUNACT Examples:
+# Acknowledge max traffic limit was hit and disable MAXRUNACT by setting this to "1"
+MAXACK="1"
 
-# run command:           /sbin/iptables-restore < /etc/firewall-lockdown.conf
-# run script:            /root/scripts/max_traffic_action_script
-# iptables flush/drop:   /sbin/iptables -F; /sbin/iptables -X; /sbin/iptables -P INPUT DROP; /sbin/iptables -P OUTPUT DROP; /sbin/iptables -P FORWARD DROP;
-# iptables ssh only:     /sbin/iptables -A INPUT -i lo -j ACCEPT; /sbin/iptables -A INPUT -p tcp -m tcp --dport 22 -j ACCEPT; /sbin/iptables -A INPUT -j DROP;
-#                        /sbin/iptables -A OUTPUT -o lo -j ACCEPT; /sbin/iptables -A OUTPUT -p tcp --sport 22 -m state --state ESTABLISHED -j ACCEPT; /sbin/iptables -A OUTPUT -j DROP;
-# stop network:	         /etc/init.d/network* stop || /usr/sbin/service network stop || /usr/sbin/service networking stop || systemctl stop network*;
-# shutdown:              /sbin/shutdown -h 5 TrafficLimit hit && sleep 360;
-
-# usually not needed:    logevent "INFO: Killing daemon process..."; pkill -9 -F $PIDFILE 2>/dev/null; rm $PIDFILE;
+# Disable log entries and mail about hitting max traffic limit by setting this to "1"
+MAXQUIET="0"
 
 PIDFILE="/var/run/traflimit.pid"
 LOGFILE="/var/log/traflimit.log"
@@ -123,19 +131,26 @@ getusage() {
         TOTUSAGE=$( expr $INCOMING + $OUTGOING )
 #DEBUG:
 #TOTUSAGE=1048577
-        if [ $TOTUSAGE -ge $MAX ]; then
-		logevent "$( echo ${BOLD}$TOTUSAGE${SGR0}/$MAX )MB of monthly bandwidth has been used ($INTERFACE); bandwidth-saving precautions are being run"
-		mailevent Alert "$( echo $TOTUSAGE/$MAX )MB of monthly bandwidth has been used ($INTERFACE); bandwidth-saving precautions are being run\nAction: $MAXRUNACT"
-		eval "$MAXRUNACT"
+	if [ $TOTUSAGE -ge $MAX ]; then
+		if [ $MAXACK -eq 1 ]; then
+			if [ $MAXQUIET -ne 1 ]; then
+				logevent "$( echo ${BOLD}$TOTUSAGE${SGR0}/$MAX )MB of monthly bandwidth has been used ($INTERFACE) - Acknowledged"
+				mailevent Ack "$( echo $TOTUSAGE/$MAX )MB of monthly bandwidth has been used ($INTERFACE) - Acknowledged by setting MAXACK to 1\nNo Actions are being run"
+			fi
+		else
+			logevent "$( echo ${BOLD}$TOTUSAGE${SGR0}/$MAX )MB of monthly bandwidth has been used ($INTERFACE); bandwidth-saving precautions are being run"
+			mailevent Alert "$( echo $TOTUSAGE/$MAX )MB of monthly bandwidth has been used ($INTERFACE); bandwidth-saving precautions are being run\nAction: $MAXRUNACT"
+			eval "$MAXRUNACT"
+		fi
 		sleep 900
-        else
+	else
 		if [ "$POLLMETHOD" = "foreground" ]; then
 			logevent "$( echo ${BOLD}$TOTUSAGE${SGR0}/$MAX )MB of monthly bandwidth has been used ($INTERFACE); system is clear for the time being"
 		fi
-        fi
+	fi
 	if [ "$POLLMETHOD" != "cron" ]; then
-	        sleep $INTERVAL
-        	getusage
+		sleep $INTERVAL
+		getusage
 	fi
 }
 
