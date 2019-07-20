@@ -27,7 +27,7 @@ RUNCMD="su"
 
 # Mail Transfer Agent. A lightweight send-only MTA such as SSMTP should work fine. Or leave empty to disable sending mail.
 # If you do not have a MTA installed you can use the included "bashmail.sh" script. Default is "/usr/sbin/sendmail"
-#MTA="/usr/sbin/sendmail"
+MTA="/usr/sbin/sendmail"
 
 # E-mail adress to receive notifications
 RCPTTO="admin@example.com"
