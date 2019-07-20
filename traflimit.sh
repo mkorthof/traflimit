@@ -27,7 +27,7 @@ RUNCMD="su"
 
 # Mail Transfer Agent. A lightweight send-only MTA such as SSMTP should work fine. Or leave empty to disable sending mail.
 # If you do not have a MTA installed you can use the included "bashmail.sh" script. Default is "/usr/sbin/sendmail"
-MTA="/usr/sbin/sendmail"
+#MTA="/usr/sbin/sendmail"
 
 # E-mail adress to receive notifications
 RCPTTO="admin@example.com"
@@ -55,9 +55,13 @@ CRONMAX="2"
 # Make sure you set this correctly. Default is: wait 60 sec then run iptables to allow only ssh traffic (!)
 MAXRUNACT='(
   sleep 60;
+  /sbin/iptables-restore < /etc/firewall-lockdown.conf
+  /root/scripts/max_traffic_action_script
   /sbin/iptables -F; /sbin/iptables -X; /sbin/iptables -P INPUT DROP; /sbin/iptables -P OUTPUT DROP; /sbin/iptables -P FORWARD DROP;
   /sbin/iptables -A INPUT -i lo -j ACCEPT; /sbin/iptables -A INPUT -p tcp -m tcp --dport 22 -j ACCEPT; /sbin/iptables -A INPUT -j DROP;
   /sbin/iptables -A OUTPUT -o lo -j ACCEPT; /sbin/iptables -A OUTPUT -p tcp --sport 22 -m state --state ESTABLISHED -j ACCEPT; /sbin/iptables -A OUTPUT -j DROP;
+  /etc/init.d/network* stop || /usr/sbin/service network stop || /usr/sbin/service networking stop || systemctl stop network*;
+  /sbin/shutdown -h 5 TrafficLimit hit && sleep 360;
   exit 0
 )'
 
@@ -72,7 +76,7 @@ MAXRUNACT='(
 # - kill self:             logevent "INFO: Killing daemon process..."; pkill -9 -F $PIDFILE 2>/dev/null; rm $PIDFILE;
 
 # Acknowledge max traffic limit was hit and disable MAXRUNACT by setting this to "1"
-MAXACK="1"
+MAXACK="0"
 
 # Disable log entries and mail about hitting max traffic limit by setting this to "1"
 MAXQUIET="0"
@@ -137,7 +141,7 @@ getusage() {
 		if [ $MAXACK -eq 1 ]; then
 			if [ $MAXQUIET -ne 1 ]; then
 				logevent "$( echo ${BOLD}$TOTUSAGE${SGR0}/$MAX )MB of monthly bandwidth has been used ($INTERFACE) - Acknowledged"
-				mailevent Ack "$( echo $TOTUSAGE/$MAX )MB of monthly bandwidth has been used ($INTERFACE) - Acknowledged by setting MAXACK to 1\nNo Actions are being run"
+				mailevent Ack "$( echo $TOTUSAGE/$MAX )MB of monthly bandwidth has been used ($INTERFACE) - Acknowledged\nAction: None (skipped)"
 			        sleep 900
 			fi
 		else

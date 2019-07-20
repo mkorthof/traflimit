@@ -4,7 +4,7 @@
 
 This script will help you limit the amount of bandwidth that you consume so that you can predict/budget bandwidth fees while using Public Cloud services from providers such as AWS, IBM, MS Azure or Rackspace etc which bill based on bandwidth utilization.
 
-Features:
+**Features:**
 
 - script is fully configurable (options inside)
 - besides from cron it can run as daemon, screen or in foreground
@@ -25,7 +25,7 @@ Features:
 
 When hitting the max traffic limit you can configure what should happen by setting `MAXRUNACT`. Remember you might have to add a `sleep 60` first so you have time to disable the script if needed (e.g if you used `shutdown` and boot after).
 
-#### Examples
+**Examples:**
 
 - run command: `/sbin/iptables-restore < /etc/firewall-lockdown.conf`
 
