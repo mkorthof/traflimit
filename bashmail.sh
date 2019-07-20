@@ -21,14 +21,12 @@
 # http://www.gnu.org/licenses/gpl-3.0.en.html 
 # 
 ############################################################################# 
-
-#############################################################################
-# 20190307 MK: bashmail.sh
-# Changes: added stdin input, ssl/tls support
-# Dependencies: base64 (openssl, nc)
+# 20190720 (MK) "bashmail.sh"
+# - Changes: added stdin input, ssl/tls support
+# - Dependencies: base64 (optionally: openssl, nc)
 #############################################################################
 
-mailto="$1"
+MAILTO="$1"
 subject="$2"
 body="$3"
 debug=0
@@ -37,33 +35,36 @@ debug=0
 ## CONFIGURATION VARIABLES
 ################################################## 
 
-#smtpsrv="smtp.mydomain.com"  # smtp server
-#HOSTNAME="mydomain.com"      # set host env var
+#smtpsrv="smtp.mydomain.com"  # SMTP Server
+#HOSTNAME="mydomain.com"      # (Opt) host env var
 
 #mailto="me.myself@mydomain.com" 
 #mailfrom="me@mydomain.com" 
 #subject="Test bashmail.sh" 
 
-html=0    # set to 1 to create html email
-auth=0    # set to 1 to enable user/password auth
-nl="\r\n" # set newlines (e.g. "\n" or "\r\n")
+html=0    # Set to 1 to create html email
+auth=0    # Set to 1 to enable user/password auth
+nl="\r\n" # Set newlines (e.g. "\n" or "\r\n")
 
-## Don't use TLS, plaintext user/password auth:
+## Do not use TLS:
 ################################################## 
 starttls=0
 smtpport="25" 
-#smtpusr="$( echo -ne me@mydomain.com | base64 )" 
-#smtppwd="$( echo -ne mypassw0rd | base64 )" 
 
-## Use TLS
+## Use TLS:
 ################################################## 
-# use port 25, 465 or 589 below
+# Set port below to 25, 465 or 589
 #starttls=1
 #smtpport="587"
 
+## Plaintext user/password auth:
+################################################## 
+#smtpusr="$( echo -ne me@mydomain.com | base64 )" 
+#smtppwd="$( echo -ne mypassw0rd | base64 )" 
+
 ## Read base64 user/password from file:
 ################################################## 
-# create a file .mail containing 2 variables
+# create a file '.mail' containing 2 variables
 # for example:
 #   user=yu2otDJ==
 #   password=9OTafrRe=

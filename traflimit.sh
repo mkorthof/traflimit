@@ -55,17 +55,13 @@ CRONMAX="2"
 # Make sure you set this correctly. Default is: wait 60 sec then run iptables to allow only ssh traffic (!)
 MAXRUNACT='(
   sleep 60;
-  /sbin/iptables-restore < /etc/firewall-lockdown.conf
-  /root/scripts/max_traffic_action_script
   /sbin/iptables -F; /sbin/iptables -X; /sbin/iptables -P INPUT DROP; /sbin/iptables -P OUTPUT DROP; /sbin/iptables -P FORWARD DROP;
   /sbin/iptables -A INPUT -i lo -j ACCEPT; /sbin/iptables -A INPUT -p tcp -m tcp --dport 22 -j ACCEPT; /sbin/iptables -A INPUT -j DROP;
   /sbin/iptables -A OUTPUT -o lo -j ACCEPT; /sbin/iptables -A OUTPUT -p tcp --sport 22 -m state --state ESTABLISHED -j ACCEPT; /sbin/iptables -A OUTPUT -j DROP;
-  /etc/init.d/network* stop || /usr/sbin/service network stop || /usr/sbin/service networking stop || systemctl stop network*;
-  /sbin/shutdown -h 5 TrafficLimit hit && sleep 360;
   exit 0
 )'
 
-# Examples 'MAXRUNACT':
+# Examples 'MAXRUNACT'
 # - run command:           /sbin/iptables-restore < /etc/firewall-lockdown.conf
 # - run script:            /root/scripts/max_traffic_action_script
 # - iptables flush/drop:   /sbin/iptables -F; /sbin/iptables -X; /sbin/iptables -P INPUT DROP; /sbin/iptables -P OUTPUT DROP; /sbin/iptables -P FORWARD DROP;
@@ -74,7 +70,6 @@ MAXRUNACT='(
 # - stop network:          /etc/init.d/network* stop || /usr/sbin/service network stop || /usr/sbin/service networking stop || systemctl stop network*;
 # - shutdown:              /sbin/shutdown -h 5 TrafficLimit hit && sleep 360;
 # - kill self:             logevent "INFO: Killing daemon process..."; pkill -9 -F $PIDFILE 2>/dev/null; rm $PIDFILE;
-# ( should not be needed )
 
 # Acknowledge max traffic limit was hit and disable MAXRUNACT by setting this to "1"
 MAXACK="1"
@@ -82,8 +77,13 @@ MAXACK="1"
 # Disable log entries and mail about hitting max traffic limit by setting this to "1"
 MAXQUIET="0"
 
+# You can also set these options by creating files in root dir:
+# touch /.maxack
+# touch /.maxquiet
+
 PIDFILE="/var/run/traflimit.pid"
 LOGFILE="/var/log/traflimit.log"
+DEBUG="0"
 
 # END of configuration
 # --------------------
@@ -101,6 +101,9 @@ mailevent() {
 		EXITCODE="$?"; if [ "$EXITCODE" -ne 0 ]; then logevent "ERROR: exit code \"$EXITCODE\" while running $MTA"; fi
 	fi
 }
+
+if [ -e "/.maxack" ]; then MAXACK="1"; fi
+if [ -e "/.maxquiet" ]; then MAXQUIET="1"; fi
 
 if [ "$VNSTATBIN" = "" ]; then VNSTATBIN="vnstat"; fi
 
@@ -129,8 +132,7 @@ getusage() {
         INCOMING=$( echo $DATA | cut -d\; -f4 )
         OUTGOING=$( echo $DATA | cut -d\; -f5 )
         TOTUSAGE=$( expr $INCOMING + $OUTGOING )
-#DEBUG:
-#TOTUSAGE=1048577
+        if [ "$DEBUG" -eq 1 ]; then TOTUSAGE=1048577; fi
 	if [ $TOTUSAGE -ge $MAX ]; then
 		if [ $MAXACK -eq 1 ]; then
 			if [ $MAXQUIET -ne 1 ]; then
