@@ -43,10 +43,10 @@ debug=0
 # (Req)uired and (Opt)ional settings
 # (Arg)uments can also be specified from CLI
 
-#HOSTNAME="mydomain.com"            # (Opt) Set envvar for 'helo'
-smtpsrv="smtp.mydomain.com"         # (Req) SMTP Server
-mailfrom="me@mydomain.com"          # (Req) From Address
-#mailto="me.myself@mydomain.com"    # (Arg) To Address
+#HOSTNAME="example.com"            # (Opt) Set envvar for 'helo'
+smtpsrv="smtp.example.com"         # (Req) SMTP Server
+mailfrom="me@example.com"          # (Req) From Address
+#mailto="me.myself@example.com"    # (Arg) To Address
 #subject="Test bashmail"            # (Arg) Subject
 
 html=0        # (Opt) Set to 1 to create html email
@@ -66,7 +66,7 @@ smtpport="587"
 
 ## (Opt) Plaintext user/password auth:
 ################################################## 
-#smtpusr="$( echo -ne me@mydomain.com | base64 )" 
+#smtpusr="$( echo -ne me@example.com | base64 )" 
 #smtppwd="$( echo -ne mypassw0rd | base64 )" 
 
 ## (Opt) Read base64 user/password from file:

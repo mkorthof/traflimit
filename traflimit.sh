@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# 20170315 MK Traffic Limit
+# 20210119 MK Traffic Limit
 
 # This script will help you limit the amount of bandwidth that you consume so that you can predict/budget bandwidth fees
 # while using services such as AWS, MS Azure, RackSpace Cloud etc which bill based on bandwidth utilization.
 
-# Requires:	"vnstat" and *optionally* "screen"
+# Requires:	"vnstat" and *optionally* "screen" and "jq"
 # Source:	https://www.besttechie.com/forums/topic/33745-linux-bandwidth-monitoring-script/
 
 AGREE=""
@@ -13,8 +13,8 @@ AGREE=""
 # Maximum amount of bandwidth (megabytes) that you want to consume in a given month before anti-overusage commands are run
 MAX=1048576
 
-# Interface that you would like to monitor (typically "eth0")
-INTERFACE="eth0"
+# Interface that you would like to monitor (typically "eth0" or "enp0s3")
+INTERFACE="enp0s3"
 
 # Optional location vnStat binary (default is none)
 #VNSTATBIN="/usr/bin/vnstat"
@@ -33,7 +33,7 @@ MTA="/usr/sbin/sendmail"
 RCPTTO="admin@example.com"
 
 # Optional e-mail address from which to sent notifications ("From:"). Default is none
-MAILFROM="TrafficLimit <traflimit@example.com>"
+#MAILFROM="TrafficLimit <traflimit@example.com>"
 
 # Use one of these methods to keep the script running in the background
 # Default is to use cron, uncomment to change to: "screen", "job" or "foreground"
@@ -93,23 +93,43 @@ DEBUG="0"
 # --------------------
 
 logevent() {
-	DATE="$( date +%F\ %T )"; STRINGBASE="[$DATE]"; MESSAGE="$@"
+	DATE="$( date +%F\ %T )"; STRINGBASE="[$DATE]"; MESSAGE="$*"
 	echo "$STRINGBASE $MESSAGE"
 	echo "$DATE $MESSAGE" | sed 's@\x1B\[[0-9;]*[a-zA-Z]@@g' >> $LOGFILE
 }
 
 mailevent() {
 	if [ "$MTA" != "" ] && [ "$RCPTTO" != "" ]; then
-		HEADER="To: <$RCPTTO>\n"; if [ "$MAILFROM" ]; then HEADER+="From: $MAILFROM\n"; fi
+		HEADER="To: <$RCPTTO>\n"
+		if [ "$MAILFROM" ]; then
+			HEADER+="From: $MAILFROM\n"
+		fi
 		echo -e "${HEADER}Subject: TrafficLimit: $1 - $HOSTNAME\n\nDate: $( date +%F\ %T )\nMessage: $2" | $MTA $RCPTTO
-		EXITCODE="$?"; if [ "$EXITCODE" -ne 0 ]; then logevent "ERROR: exit code \"$EXITCODE\" while running $MTA"; fi
+		EXITCODE="$?"
+		if [ "$EXITCODE" -ne 0 ]; then
+			logevent "ERROR: exit code \"$EXITCODE\" while running $MTA"
+		fi
 	fi
 }
 
-if [ -e "/.maxack" ]; then MAXACK="1"; fi
-if [ -e "/.maxquiet" ]; then MAXQUIET="1"; fi
+if [ -e "/.maxack" ]; then
+	MAXACK="1"
+fi
+if [ -e "/.maxquiet" ]; then
+	MAXQUIET="1"
+fi
 
-if [ "$VNSTATBIN" = "" ]; then VNSTATBIN="vnstat"; fi
+if [ "$VNSTATBIN" = "" ]; then
+	VNSTATBIN="vnstat"
+fi
+
+# vnstat 1.13+ uses --json instead of --dumpdb
+VNSTATVER="$( "$VNSTATBIN" --version )"
+JQ=0; JSON=0
+if echo "$VNSTATVER" | grep -Eq "1\.1[3-9]|[2-9]\.[0-9]"; then
+	which jq >/dev/null 2>&1 && JQ=1
+	JSON=1
+fi
 
 if [ "$1" = "cron" ]; then
 	if [[ "$POLLMETHOD" =~ ^(screen|job|foreground)$ ]]; then
@@ -128,31 +148,46 @@ runcmdas() {
 	if [ "$RUNCMD" = "su" ]; then echo | su -c "$1" -s /bin/sh $RUNAS
 	elif [ "$RUNCMD" = "sudo" ]; then eval sudo -n -u $RUNAS "$1"
 	elif [ "$RUNCMD" = "none" ]; then eval "$1"; fi
-	EXITCODE="$?"; if [ "$EXITCODE" -ne 0 ]; then logevent "ERROR: exit code \"$EXITCODE\" while running $1"; fi
+	EXITCODE="$?"
+	if [ "$EXITCODE" -ne 0 ]; then
+		logevent "ERROR: exit code \"$EXITCODE\" while running $1"
+	fi
 }
 
 getusage() {
-	DATA=$( runcmdas "$VNSTATBIN --dumpdb -i $INTERFACE | grep 'm;0'" )
-        INCOMING=$( echo $DATA | cut -d\; -f4 )
-        OUTGOING=$( echo $DATA | cut -d\; -f5 )
-        TOTUSAGE=$( expr $INCOMING + $OUTGOING )
-        if [ "$DEBUG" -eq 1 ]; then TOTUSAGE=1048577; fi
+	if [ "$JSON" -eq 1 ]; then
+		DATA="$( runcmdas "$VNSTATBIN -i $INTERFACE --json m" )"
+		if [ "$JQ" -eq 1 ]; then
+			INCOMING="$( echo "$DATA" | jq '.interfaces|.[].traffic.month|.[].rx' )"
+			OUTGOING="$( echo "$DATA" | jq '.interfaces|.[].traffic.month|.[].tx' )"
+		else
+			TMP="$( echo "$DATA" | sed -r 's/.*"rx":([0-9]+),"tx":([0-9]+)[^ ].*/\1 \2/' )"
+			INCOMING="$( echo "$TMP" | cut -d' ' -f1 )"
+			OUTGOING="$( echo "$TMP" | cut -d' ' -f2 )"
+		fi
+	else
+		DATA="$( runcmdas "$VNSTATBIN --dumpdb -i $INTERFACE | grep 'm;0'" )"
+		INCOMING="$( echo "$DATA" | cut -d\; -f4 )"
+		OUTGOING="$( echo "$DATA" | cut -d\; -f5 )"
+	fi
+	TOTUSAGE="$((INCOMING+OUTGOING))"
+	if [ "$DEBUG" -eq 1 ]; then TOTUSAGE=1048577; fi
 	if [ $TOTUSAGE -ge $MAX ]; then
 		if [ $MAXACK -eq 1 ]; then
 			if [ $MAXQUIET -ne 1 ]; then
-				logevent "$( echo ${BOLD}$TOTUSAGE${SGR0}/$MAX )MB of monthly bandwidth has been used ($INTERFACE) - Acknowledged"
-				mailevent Ack "$( echo $TOTUSAGE/$MAX )MB of monthly bandwidth has been used ($INTERFACE) - Acknowledged\nAction: None (skipped)"
+				logevent "${BOLD}$TOTUSAGE${SGR0}/$MAX MB of monthly bandwidth has been used ($INTERFACE) - Acknowledged"
+				mailevent Ack "$TOTUSAGE/$MAX MB of monthly bandwidth has been used ($INTERFACE) - Acknowledged\nAction: None (skipped)"
 			        sleep 900
 			fi
 		else
-			logevent "$( echo ${BOLD}$TOTUSAGE${SGR0}/$MAX )MB of monthly bandwidth has been used ($INTERFACE); bandwidth-saving precautions are being run"
-			mailevent Alert "$( echo $TOTUSAGE/$MAX )MB of monthly bandwidth has been used ($INTERFACE); bandwidth-saving precautions are being run\nAction: $MAXRUNACT"
+			logevent "${BOLD}$TOTUSAGE${SGR0}/$MAX MB of monthly bandwidth has been used ($INTERFACE); bandwidth-saving precautions are being run"
+			mailevent Alert "$TOTUSAGE/$MAX MB of monthly bandwidth has been used ($INTERFACE); bandwidth-saving precautions are being run\nAction: $MAXRUNACT"
 			eval "$MAXRUNACT"
 			sleep 900
 		fi
 	else
 		if [ "$POLLMETHOD" = "foreground" ]; then
-			logevent "$( echo ${BOLD}$TOTUSAGE${SGR0}/$MAX )MB of monthly bandwidth has been used ($INTERFACE); system is clear for the time being"
+			logevent "${BOLD}$TOTUSAGE${SGR0}/$MAX MB of monthly bandwidth has been used ($INTERFACE); system is clear for the time being"
 		fi
 	fi
 	if [ "$POLLMETHOD" != "cron" ]; then
@@ -161,23 +196,36 @@ getusage() {
 	fi
 }
 
-MSGPLS="Please make sure"; MSGEXE="does not exist or is not executable."; MSGITA="It appears that"; MSGDEF="Please define this and restart."
-if [ $( id -u ) -ne 0 ]; then echo "[$( date +%F\ %T )] ERROR: Please run this script as root."; exit 1
-elif [ "$AGREE" != "YES" ]; then logevent "INFO: $MSGPLS you understand what this script does, read the header and check that ${BOLD}\$MAXRUNACT${SGR0} is set correctly."
+MSG_PLS="Please make sure"
+MSG_EXE="does not exist or is not executable."
+MSG_ITA="It appears that"
+MSG_DEF="Please define this and restart."
+if [ "$( id -u )" -ne 0 ]; then
+	echo "[$( date +%F\ %T )] ERROR: Please run this script as root."; exit 1
+elif [ "$AGREE" != "YES" ]; then
+	logevent "INFO: $MSG_PLS you understand what this script does, read the header and check that ${BOLD}\$MAXRUNACT${SGR0} is set correctly."
 	logevent "When you have reached the maximum amount of traffic ${BOLD}\$MAX${SGR0} the ${BOLD}\$MAXRUNACT${SGR0} default is: ${SMUL}run iptables to allow only ssh traffic${RMUL}."
 	logevent "To confirm please set ${BOLD}\$AGREE${SGR0} to \"${BOLD}YES${SGR0}\" and restart."; exit 0
-elif [ -x "$VNSTATBIN" ]; then logevent "ERROR: \"vnstat\" binary $MSGEXE $MSGPLS vnStat is installed correctly."; exit 1
-elif [ "$( whereis vnstat )" = "vnstat:" ]; then logevent "ERROR: $MSGITA you do not have \"vnstat\" installed. Please install this package and restart."; exit 1
-elif [ "$UPDATEMETHOD" = "vnstatd" ] && [ ! "$( pgrep vnstatd )" ]; then logevent "ERROR: $MSGITA \"vnstatd\" is not running."
-	logevent "$MSGPLS it is started first or change ${BOLD}\$POLLMETHOD${SGR0} to \"vnstat-u\" and then rerun this script."; exit 1
-elif [ "$UPDATEMETHOD" = "vnstat-u" ] && [ "$( pgrep vnstatd )" ]; then logevent "ERROR: $MSGITA \"vnstatd\" is running but ${BOLD}\$POLMETHOD${SGR0} is set to \"vnstat-u\."
+elif [ -x "$VNSTATBIN" ]; then
+	logevent "ERROR: \"vnstat\" binary $MSG_EXE $MSG_PLS vnStat is installed correctly."; exit 1
+elif [ "$( whereis vnstat )" = "vnstat:" ]; then
+	logevent "ERROR: $MSG_ITA you do not have \"vnstat\" installed. Please install this package and restart."; exit 1
+elif [ "$UPDATEMETHOD" = "vnstatd" ] && [ ! "$( pgrep vnstatd )" ]; then logevent "ERROR: $MSG_ITA \"vnstatd\" is not running."
+	logevent "$MSG_PLS it is started first or change ${BOLD}\$POLLMETHOD${SGR0} to \"vnstat-u\" and then rerun this script."; exit 1
+elif [ "$UPDATEMETHOD" = "vnstat-u" ] && [ "$( pgrep vnstatd )" ]; then logevent "ERROR: $MSG_ITA \"vnstatd\" is running but ${BOLD}\$POLMETHOD${SGR0} is set to \"vnstat-u\."
 	logevent "Config not possible, please either disable vnstatd or change ${BOLD}\$POLLMETHOD${SGR0} and then rerun this script."; exit 1
-elif [[ ! "$POLLMETHOD" =~ ^(screen|job|cron|foreground)$ ]]; then logevent "ERROR: No method found to keep the script running. Please define this or run from cron."; exit 1
-elif [ "$RUNCMD" = "sudo" ] && [ ! "$( sudo -l vnstat 2>/dev/null )" ]; then logevent "ERROR: Unable to run \"sudo vnstat\". Please check your sudo config or change ${BOLD}\$RUNCMD${SGR0} to \"su\" or \"none\"."; exit 1
-elif [ "$MTA" != "" ] && [ ! -x "$MTA" ]; then logevent "ERROR: Sendmail $MSGEXE Please check ${BOLD}\$MTA${SGR0} or it leave empty to disable sending mail."; exit 1
-elif [ "$MTA" != "" ] && [ "$RCPTTO" = "" ]; then logevent "ERROR: Mail receipient (${BOLD}\$RCPTTO${SGR0}) has not been defined. $MSGDEF Leave \$MTA empty to disable sending mail."; exit 1
-elif [ "$INTERFACE" = "" ]; then logevent "ERROR: You have not defined the interface network (${BOLD}\$INTERFACE${SGR0}) that you want to monitor. $MSGDEF"; exit 1
-elif [ $MAX == "" ]; then logevent "ERROR: The maximum monthly traffic level (${BOLD}\$MAX${SGR0}) has not been defined. $MSGDEF"; exit 1
+elif [[ ! "$POLLMETHOD" =~ ^(screen|job|cron|foreground)$ ]]; then
+	logevent "ERROR: No method found to keep the script running. Please define this or run from cron."; exit 1
+elif [ "$RUNCMD" = "sudo" ] && [ ! "$( sudo -l vnstat 2>/dev/null )" ]; then
+	logevent "ERROR: Unable to run \"sudo vnstat\". Please check your sudo config or change ${BOLD}\$RUNCMD${SGR0} to \"su\" or \"none\"."; exit 1
+elif [ "$MTA" != "" ] && [ ! -x "$MTA" ]; then
+	logevent "ERROR: Sendmail $MSG_EXE Please check ${BOLD}\$MTA${SGR0} or it leave empty to disable sending mail."; exit 1
+elif [ "$MTA" != "" ] && [ "$RCPTTO" = "" ]; then
+	logevent "ERROR: Mail receipient (${BOLD}\$RCPTTO${SGR0}) has not been defined. $MSG_DEF Leave \$MTA empty to disable sending mail."; exit 1
+elif [ "$INTERFACE" = "" ]; then
+	logevent "ERROR: You have not defined the interface network (${BOLD}\$INTERFACE${SGR0}) that you want to monitor. $MSG_DEF"; exit 1
+elif [ $MAX == "" ]; then
+	logevent "ERROR: The maximum monthly traffic level (${BOLD}\$MAX${SGR0}) has not been defined. $MSG_DEF"; exit 1
 elif [ -s $PIDFILE ]; then
 	if [ "$( pgrep -F $PIDFILE 2>/dev/null )" ]; then
 		PSINFO="$( pgrep -F $PIDFILE | xargs --no-run-if-empty ps -ho user,pid,tty,start,cmd -p | sed 's/  */ /g' )";
@@ -190,7 +238,7 @@ echo "$$" > $PIDFILE
 
 if [ "$POLLMETHOD" = "screen" ]; then
 	if [ "$( whereis screen )" = "screen:" ]; then
-		logevent "ERROR: $MSGITA you do not have \"screen\" installed. Please install this package and restart."
+		logevent "ERROR: $MSG_ITA you do not have \"screen\" installed. Please install this package and restart."
 		exit 1
 	else
 		if [ "$1" = "doscreen" ]; then
@@ -202,7 +250,7 @@ if [ "$POLLMETHOD" = "screen" ]; then
 				runcmdas "$VNSTATBIN -u -i $INTERFACE"
 			fi
 			logevent "INFO: Initiating screen session to run as a daemon process"
-			screen -d -m $0 doscreen
+			screen -d -m "$0" doscreen
 		fi
 		#fi
 	fi
