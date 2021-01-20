@@ -10,6 +10,7 @@ This script will help you limit the amount of bandwidth that you consume so that
 - besides from cron it can run as daemon, screen or in foreground
 - sends email and/or runs custom action(s) if traffic limit is hit like commands, other scripts etc
 - includes `bashmail.sh` script, a small sendmail drop in replacement using... Bash :)
+- both vnstat 1 and 2 supported
 
 ### Installation
 

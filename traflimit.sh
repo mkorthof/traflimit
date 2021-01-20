@@ -39,8 +39,8 @@ RCPTTO="admin@example.com"
 # Default is to use cron, uncomment to change to: "screen", "job" or "foreground"
 #POLLMETHOD="foreground"
 
-# Should the script run vnstat -u to update the vnstat database or are you using the vnstatd daemon
-# Default is "vnstatd", can be changed to: "vnstat-u"
+# Should the script run vnstat -u to update the vnstat database (vnstat 1.x only) or are you using the vnstatd daemon
+# Default is "vnstatd"
 UPDATEMETHOD="vnstatd"
 
 # Interval between polling stats, in seconds
@@ -125,10 +125,17 @@ fi
 
 # vnstat 1.13+ uses --json instead of --dumpdb
 VNSTATVER="$( "$VNSTATBIN" --version )"
-JQ=0; JSON=0
+JQ=0
+JSON=0
+VNSTATUPD=0
 if echo "$VNSTATVER" | grep -Eq "1\.1[3-9]|[2-9]\.[0-9]"; then
 	which jq >/dev/null 2>&1 && JQ=1
 	JSON=1
+fi
+
+# vnstat 2 doesnt support --update anymore
+if echo "$VNSTATVER" | grep -Eq "1\.[0-9]"; then
+	VNSTATUPD=1
 fi
 
 if [ "$1" = "cron" ]; then
@@ -158,13 +165,15 @@ getusage() {
 	if [ "$JSON" -eq 1 ]; then
 		DATA="$( runcmdas "$VNSTATBIN -i $INTERFACE --json m" )"
 		if [ "$JQ" -eq 1 ]; then
-			INCOMING="$( echo "$DATA" | jq '.interfaces|.[].traffic.month|.[].rx' )"
-			OUTGOING="$( echo "$DATA" | jq '.interfaces|.[].traffic.month|.[].tx' )"
+			TMP_IN="$( echo "$DATA" | jq '.interfaces|.[].traffic.month|.[].rx' )"
+			TMP_OUT="$( echo "$DATA" | jq '.interfaces|.[].traffic.month|.[].tx' )"
 		else
-			TMP="$( echo "$DATA" | sed -r 's/.*"rx":([0-9]+),"tx":([0-9]+)[^ ].*/\1 \2/' )"
-			INCOMING="$( echo "$TMP" | cut -d' ' -f1 )"
-			OUTGOING="$( echo "$TMP" | cut -d' ' -f2 )"
+			TMP_RXTX="$( echo "$DATA" | sed -r 's/.*"rx":([0-9]+),"tx":([0-9]+)[^ ].*/\1 \2/' )"
+			TMP_IN="$( echo "$TMP_RXTX" | cut -d' ' -f1 )"
+			TMP_OUT="$( echo "$TMP_RXTX" | cut -d' ' -f2 )"
 		fi
+		INCOMING="$((TMP_IN/1024/1024))"
+		OUTGOING="$((TMP_OUT/1024/1024))"
 	else
 		DATA="$( runcmdas "$VNSTATBIN --dumpdb -i $INTERFACE | grep 'm;0'" )"
 		INCOMING="$( echo "$DATA" | cut -d\; -f4 )"
@@ -175,19 +184,19 @@ getusage() {
 	if [ $TOTUSAGE -ge $MAX ]; then
 		if [ $MAXACK -eq 1 ]; then
 			if [ $MAXQUIET -ne 1 ]; then
-				logevent "${BOLD}$TOTUSAGE${SGR0}/$MAX MB of monthly bandwidth has been used ($INTERFACE) - Acknowledged"
-				mailevent Ack "$TOTUSAGE/$MAX MB of monthly bandwidth has been used ($INTERFACE) - Acknowledged\nAction: None (skipped)"
+				logevent "${BOLD}$TOTUSAGE${SGR0}/$MAX MiB of monthly bandwidth has been used ($INTERFACE) - Acknowledged"
+				mailevent Ack "$TOTUSAGE/$MAX MiB of monthly bandwidth has been used ($INTERFACE) - Acknowledged\nAction: None (skipped)"
 			        sleep 900
 			fi
 		else
-			logevent "${BOLD}$TOTUSAGE${SGR0}/$MAX MB of monthly bandwidth has been used ($INTERFACE); bandwidth-saving precautions are being run"
-			mailevent Alert "$TOTUSAGE/$MAX MB of monthly bandwidth has been used ($INTERFACE); bandwidth-saving precautions are being run\nAction: $MAXRUNACT"
+			logevent "${BOLD}$TOTUSAGE${SGR0}/$MAX MiB of monthly bandwidth has been used ($INTERFACE); bandwidth-saving precautions are being run"
+			mailevent Alert "$TOTUSAGE/$MAX MiB of monthly bandwidth has been used ($INTERFACE); bandwidth-saving precautions are being run\nAction: $MAXRUNACT"
 			eval "$MAXRUNACT"
 			sleep 900
 		fi
 	else
 		if [ "$POLLMETHOD" = "foreground" ]; then
-			logevent "${BOLD}$TOTUSAGE${SGR0}/$MAX MB of monthly bandwidth has been used ($INTERFACE); system is clear for the time being"
+			logevent "${BOLD}$TOTUSAGE${SGR0}/$MAX MiB of monthly bandwidth has been used ($INTERFACE); system is clear for the time being"
 		fi
 	fi
 	if [ "$POLLMETHOD" != "cron" ]; then
@@ -196,36 +205,37 @@ getusage() {
 	fi
 }
 
-MSG_PLS="Please make sure"
-MSG_EXE="does not exist or is not executable."
-MSG_ITA="It appears that"
-MSG_DEF="Please define this and restart."
 if [ "$( id -u )" -ne 0 ]; then
 	echo "[$( date +%F\ %T )] ERROR: Please run this script as root."; exit 1
 elif [ "$AGREE" != "YES" ]; then
-	logevent "INFO: $MSG_PLS you understand what this script does, read the header and check that ${BOLD}\$MAXRUNACT${SGR0} is set correctly."
+	logevent "INFO: Please make sure you understand what this script does, read the header and check that ${BOLD}\$MAXRUNACT${SGR0} is set correctly."
 	logevent "When you have reached the maximum amount of traffic ${BOLD}\$MAX${SGR0} the ${BOLD}\$MAXRUNACT${SGR0} default is: ${SMUL}run iptables to allow only ssh traffic${RMUL}."
 	logevent "To confirm please set ${BOLD}\$AGREE${SGR0} to \"${BOLD}YES${SGR0}\" and restart."; exit 0
 elif [ -x "$VNSTATBIN" ]; then
-	logevent "ERROR: \"vnstat\" binary $MSG_EXE $MSG_PLS vnStat is installed correctly."; exit 1
+	logevent "ERROR: \"vnstat\" binary does not exist or is not executable. Please make sure vnStat is installed correctly."; exit 1
 elif [ "$( whereis vnstat )" = "vnstat:" ]; then
-	logevent "ERROR: $MSG_ITA you do not have \"vnstat\" installed. Please install this package and restart."; exit 1
-elif [ "$UPDATEMETHOD" = "vnstatd" ] && [ ! "$( pgrep vnstatd )" ]; then logevent "ERROR: $MSG_ITA \"vnstatd\" is not running."
-	logevent "$MSG_PLS it is started first or change ${BOLD}\$POLLMETHOD${SGR0} to \"vnstat-u\" and then rerun this script."; exit 1
-elif [ "$UPDATEMETHOD" = "vnstat-u" ] && [ "$( pgrep vnstatd )" ]; then logevent "ERROR: $MSG_ITA \"vnstatd\" is running but ${BOLD}\$POLMETHOD${SGR0} is set to \"vnstat-u\."
+	logevent "ERROR: It appears that you do not have \"vnstat\" installed. Please install this package and restart."; exit 1
+elif [ "$UPDATEMETHOD" = "vnstatd" ] && [ ! "$( pgrep vnstatd )" ]; then
+	logevent "ERROR: It appears that \"vnstatd\" is not running."
+	logevent "Please make sure it is started first or change ${BOLD}\$POLLMETHOD${SGR0} to \"vnstat-u\" and then rerun this script."; exit 1
+elif [ "$UPDATEMETHOD" = "vnstat-u" ] && [ "$( pgrep vnstatd )" ]; then
+	logevent "ERROR: It appears that \"vnstatd\" is running but ${BOLD}\$POLMETHOD${SGR0} is set to \"vnstat-u\."
 	logevent "Config not possible, please either disable vnstatd or change ${BOLD}\$POLLMETHOD${SGR0} and then rerun this script."; exit 1
+elif [ "$UPDATEMETHOD" = "vnstat-u" ] && [ "$VNSTATUPD" -eq 0 ]; then
+	logevent "ERROR: Vnstat 2.x does not support '-u' parameter to update database."
+	logevent "Config not possible, please set enable vnstatd as ${BOLD}\$UPDATEMETHOD${SGR0} and then rerun this script."; exit 1
 elif [[ ! "$POLLMETHOD" =~ ^(screen|job|cron|foreground)$ ]]; then
 	logevent "ERROR: No method found to keep the script running. Please define this or run from cron."; exit 1
 elif [ "$RUNCMD" = "sudo" ] && [ ! "$( sudo -l vnstat 2>/dev/null )" ]; then
 	logevent "ERROR: Unable to run \"sudo vnstat\". Please check your sudo config or change ${BOLD}\$RUNCMD${SGR0} to \"su\" or \"none\"."; exit 1
 elif [ "$MTA" != "" ] && [ ! -x "$MTA" ]; then
-	logevent "ERROR: Sendmail $MSG_EXE Please check ${BOLD}\$MTA${SGR0} or it leave empty to disable sending mail."; exit 1
+	logevent "ERROR: Sendmail does not exist or is not executable. Please check ${BOLD}\$MTA${SGR0} or it leave empty to disable sending mail."; exit 1
 elif [ "$MTA" != "" ] && [ "$RCPTTO" = "" ]; then
-	logevent "ERROR: Mail receipient (${BOLD}\$RCPTTO${SGR0}) has not been defined. $MSG_DEF Leave \$MTA empty to disable sending mail."; exit 1
+	logevent "ERROR: Mail receipient (${BOLD}\$RCPTTO${SGR0}) has not been defined. Please define this and restart. Leave \$MTA empty to disable sending mail."; exit 1
 elif [ "$INTERFACE" = "" ]; then
-	logevent "ERROR: You have not defined the interface network (${BOLD}\$INTERFACE${SGR0}) that you want to monitor. $MSG_DEF"; exit 1
+	logevent "ERROR: You have not defined the interface network (${BOLD}\$INTERFACE${SGR0}) that you want to monitor. Please define this and restart."; exit 1
 elif [ $MAX == "" ]; then
-	logevent "ERROR: The maximum monthly traffic level (${BOLD}\$MAX${SGR0}) has not been defined. $MSG_DEF"; exit 1
+	logevent "ERROR: The maximum monthly traffic level (${BOLD}\$MAX${SGR0}) has not been defined. Please define this and restart."; exit 1
 elif [ -s $PIDFILE ]; then
 	if [ "$( pgrep -F $PIDFILE 2>/dev/null )" ]; then
 		PSINFO="$( pgrep -F $PIDFILE | xargs --no-run-if-empty ps -ho user,pid,tty,start,cmd -p | sed 's/  */ /g' )";
@@ -238,7 +248,7 @@ echo "$$" > $PIDFILE
 
 if [ "$POLLMETHOD" = "screen" ]; then
 	if [ "$( whereis screen )" = "screen:" ]; then
-		logevent "ERROR: $MSG_ITA you do not have \"screen\" installed. Please install this package and restart."
+		logevent "ERROR: It appears that you do not have \"screen\" installed. Please install this package and restart."
 		exit 1
 	else
 		if [ "$1" = "doscreen" ]; then
@@ -246,13 +256,12 @@ if [ "$POLLMETHOD" = "screen" ]; then
 		else
 			if [ "$UPDATEMETHOD" = "vnstat-u" ]; then
 				logevent "Starting vnstat interface logging on $INTERFACE"
-				mailevent Starting "Starting vnstat interface logging on $INTERFACE with a maximum of ${MAX}MB traffic per month"
+				mailevent Starting "Starting vnstat interface logging on $INTERFACE with a maximum of ${MAX}MiB traffic per month"
 				runcmdas "$VNSTATBIN -u -i $INTERFACE"
 			fi
 			logevent "INFO: Initiating screen session to run as a daemon process"
 			screen -d -m "$0" doscreen
 		fi
-		#fi
 	fi
 fi
 
@@ -268,7 +277,7 @@ fi
 if [ "$POLLMETHOD" = "job" ]; then
 	if [ "$UPDATEMETHOD" = "vnstat-u" ]; then
 		logevent "Starting vnstat interface logging on $INTERFACE" 
-		mailevent Starting "Starting vnstat interface logging on $INTERFACE with a maximum of ${MAX}MB traffic per month"
+		mailevent Starting "Starting vnstat interface logging on $INTERFACE with a maximum of ${MAX}MiB traffic per month"
 		runcmdas "$VNSTATBIN -u -i $INTERFACE"
 	fi
 	logevent "INFO: Starting daemon process..."
@@ -281,7 +290,7 @@ fi
 if [ "$POLLMETHOD" = "foreground" ]; then
 	if [ "$UPDATEMETHOD" = "vnstat-u" ]; then
 		logevent "Starting vnstat interface logging on $INTERFACE" 
-		mailevent Starting "Starting vnstat interface logging on $INTERFACE with a maximum of ${MAX}MB traffic per month"
+		mailevent Starting "Starting vnstat interface logging on $INTERFACE with a maximum of ${MAX}MiB traffic per month"
 		runcmdas "$VNSTATBIN -u -i $INTERFACE"
 	fi
 	logevent "INFO: Starting process in foreground. Press ${BOLD}CTRL-C${SGR0} to abort."
