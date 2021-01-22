@@ -61,8 +61,8 @@ smtpport="25"
 ## (Opt) Use TLS:
 ################################################## 
 # Set port below to 25, 465 or 587
-starttls=1
-smtpport="587"
+#starttls=1
+#smtpport="587"
 
 ## (Opt) Plaintext user/password auth:
 ################################################## 

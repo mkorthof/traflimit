@@ -13,7 +13,7 @@ AGREE=""
 # Maximum amount of bandwidth (megabytes) that you want to consume in a given month before anti-overusage commands are run
 MAX=1048576
 
-# Interface that you would like to monitor (typically "enp0s3" or "enp0s3")
+# Interface that you would like to monitor (typically "eth0" or "enp0s3")
 INTERFACE="enp0s3"
 
 # Optional location vnStat binary (default is none)
