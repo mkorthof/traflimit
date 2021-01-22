@@ -123,19 +123,14 @@ if [ "$VNSTATBIN" = "" ]; then
 	VNSTATBIN="vnstat"
 fi
 
-# vnstat 1.13+ uses --json instead of --dumpdb
-VNSTATVER="$( "$VNSTATBIN" --version )"
+# check for --update and --json support
 JQ=0
 JSON=0
 VNSTATUPD=0
-if echo "$VNSTATVER" | grep -Eq "1\.1[3-9]|[2-9]\.[0-9]"; then
-	which jq >/dev/null 2>&1 && JQ=1
-	JSON=1
-fi
-
-# vnstat 2 doesnt support --update anymore
-if echo "$VNSTATVER" | grep -Eq "1\.[0-9]"; then
-	VNSTATUPD=1
+"$VNSTATBIN" --update >/dev/null2>&1 && VNSTATUPD=1
+"$VNSTATBIN" --json >/dev/null 2>&1 && JSON=1
+if [ "$JSON" -eq 1 ]; then
+  which jq >/dev/null 2>&1 && JQ=1
 fi
 
 if [ "$1" = "cron" ]; then
@@ -168,7 +163,7 @@ getusage() {
 			TMP_IN="$( echo "$DATA" | jq '.interfaces|.[].traffic.month|.[].rx' )"
 			TMP_OUT="$( echo "$DATA" | jq '.interfaces|.[].traffic.month|.[].tx' )"
 		else
-			TMP_RXTX="$( echo "$DATA" | sed -r 's/.*"rx":([0-9]+),"tx":([0-9]+)[^ ].*/\1 \2/' )"
+			TMP_RXTX="$( echo "$DATA" | sed -r 's/.*"id":0,"date":\{"year":[0-9]{4},"month":[0-9]+\},"rx":([0-9]+),"tx":([0-9]+)\}.*/\1 \2/' )"
 			TMP_IN="$( echo "$TMP_RXTX" | cut -d' ' -f1 )"
 			TMP_OUT="$( echo "$TMP_RXTX" | cut -d' ' -f2 )"
 		fi
