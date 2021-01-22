@@ -13,7 +13,7 @@ AGREE=""
 # Maximum amount of bandwidth (megabytes) that you want to consume in a given month before anti-overusage commands are run
 MAX=1048576
 
-# Interface that you would like to monitor (typically "eth0" or "enp0s3")
+# Interface that you would like to monitor (typically "enp0s3" or "enp0s3")
 INTERFACE="enp0s3"
 
 # Optional location vnStat binary (default is none)
@@ -127,8 +127,11 @@ fi
 JQ=0
 JSON=0
 VNSTATUPD=0
-"$VNSTATBIN" --update >/dev/null2>&1 && VNSTATUPD=1
+VNSTATVER=1
+"$VNSTATBIN" --update >/dev/null 2>&1 && VNSTATUPD=1
 "$VNSTATBIN" --json >/dev/null 2>&1 && JSON=1
+vnstat --version | grep -Eq "^vnStat 2" && VNSTATVER=2
+
 if [ "$JSON" -eq 1 ]; then
   which jq >/dev/null 2>&1 && JQ=1
 fi
@@ -158,17 +161,26 @@ runcmdas() {
 
 getusage() {
 	if [ "$JSON" -eq 1 ]; then
-		DATA="$( runcmdas "$VNSTATBIN -i $INTERFACE --json m" )"
-		if [ "$JQ" -eq 1 ]; then
-			TMP_IN="$( echo "$DATA" | jq '.interfaces|.[].traffic.month|.[].rx' )"
-			TMP_OUT="$( echo "$DATA" | jq '.interfaces|.[].traffic.month|.[].tx' )"
+		if [ "$VNSTATVER" -eq 1 ]; then
+			DIV="/1024"
 		else
-			TMP_RXTX="$( echo "$DATA" | sed -r 's/.*"id":0,"date":\{"year":[0-9]{4},"month":[0-9]+\},"rx":([0-9]+),"tx":([0-9]+)\}.*/\1 \2/' )"
-			TMP_IN="$( echo "$TMP_RXTX" | cut -d' ' -f1 )"
-			TMP_OUT="$( echo "$TMP_RXTX" | cut -d' ' -f2 )"
+			DIV="/1024/1024"
 		fi
-		INCOMING="$((TMP_IN/1024/1024))"
-		OUTGOING="$((TMP_OUT/1024/1024))"
+		DATA="$( runcmdas "$VNSTATBIN -i $INTERFACE --json m" )"
+		if echo $DATA | grep -Eq "^Error:"; then
+			logevent "$( echo "$DATA" | sed 's/^Error:/ERROR:/' )"
+			exit 1
+		fi
+		if [ "$JQ" -eq 1 ]; then
+			TMP_IN="$( echo "$DATA" | jq '.interfaces|.[]|.traffic|.month//.months|.[0].rx' )"
+			TMP_OUT="$( echo "$DATA" | jq '.interfaces|.[]|.traffic|.month//.months|.[0].tx' )"
+		else
+			TMP="$( echo "$DATA" | sed -r 's/.*\[\{"id":[0-9],"date":\{"year":[0-9]{4},"month":[0-9]+\},"rx":([0-9]+),"tx":([0-9]+)\}.*/\1 \2/' )"
+			TMP_IN="$( echo "$TMP" | cut -d' ' -f1 )"
+			TMP_OUT="$( echo "$TMP" | cut -d' ' -f2 )"
+		fi
+		INCOMING="$((TMP_IN${DIV}))"
+		OUTGOING="$((TMP_OUT${DIV}))"
 	else
 		DATA="$( runcmdas "$VNSTATBIN --dumpdb -i $INTERFACE | grep 'm;0'" )"
 		INCOMING="$( echo "$DATA" | cut -d\; -f4 )"
@@ -289,7 +301,9 @@ if [ "$POLLMETHOD" = "foreground" ]; then
 		runcmdas "$VNSTATBIN -u -i $INTERFACE"
 	fi
 	logevent "INFO: Starting process in foreground. Press ${BOLD}CTRL-C${SGR0} to abort."
- 	trap '{ logevent "INFO: Exiting..."; if [ -s $PIDFILE ]; then rm $PIDFILE; fi; exit 0; }' HUP INT QUIT TERM
+	trap '{ logevent "INFO: Exiting..."; if [ -s $PIDFILE ]; then rm $PIDFILE; fi; exit 0; }' HUP INT QUIT TERM
 	getusage
 	exit 0
 fi
+
+# vim: set noet sts=0 sw=4 ts=4:
