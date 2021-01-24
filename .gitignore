@@ -1,1 +1,10 @@
+*.bak
+*.debug
+*.log
+*.out
+*.swap
+*.tmp
+typescript
+archive/
 dev/
+test/
