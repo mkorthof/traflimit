@@ -1,12 +1,12 @@
 # Traffic Limit ("traflimit")
 
-## Limits amount of bandwidth that can be used by your Host/VPS/VM
+## Limits amount of bandwidth that can be used by host
 
-This script will help you limit the amount of bandwidth that you consume so that you can predict/budget bandwidth fees while using Public Cloud services from providers such as AWS, IBM, MS Azure or Rackspace etc which bill based on bandwidth utilization.
+This script will help you limit the amount of bandwidth that you consume on a bm/vm/vps so that you can predict/budget bandwidth fees while using Public Cloud services from providers such as AWS, IBM, MS Azure or Rackspace etc which bill based on bandwidth utilization.
 
 **Features:**
 
-- script is fully configurable (options inside)
+- script is fully configurable: set options in traflimit.conf or inside script
 - besides from cron it can run as daemon, screen or in foreground
 - sends email and/or runs custom action(s) if traffic limit is hit like commands, other scripts etc
 - includes `bashmail.sh` script, a small sendmail drop in replacement using... Bash :)
@@ -14,12 +14,31 @@ This script will help you limit the amount of bandwidth that you consume so that
 
 ### Installation
 
-1) Configure options in `traflimit.sh`, included comments explain what they do
+See included comments in traflimit.conf for an explaination of what they do.
+
+1) Configure options in traflimit.conf (*RECOMMENDED*) or add them to top of traflimit.sh
 2) Test by first setting `POLLMETHOD="foreground"`
 3) Comment `POLLMETHOD` and create file in `/etc/cron.d`:
 
-``` Bash
+``` bash
    echo "* * * * * root $PWD/traflimit.sh cron 2>&1" | sudo tee /etc/cron.d/traflimit
+```
+
+**Paths:**
+
+The .sh script will search for the .conf in same dir, /etc and /usr/local/etc.
+
+Suggested paths: "/usr/local/etc/traflimit.conf" and "/usr/local/sbin/traflimit.sh"
+
+**Migrating:**
+
+If you want to copy settings from traflimit.sh to traflimit.conf:
+
+- first try running the command below 
+- remove settings from traflimit.sh or just get it from repo
+
+``` bash
+  sudo sed -n '/^AGREE=/,/^# END/p' traflimit.sh > /usr/local/etc/traflimit.conf`
 ```
 
 ### Actions
