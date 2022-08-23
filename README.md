@@ -55,6 +55,18 @@ When hitting the max traffic limit you can configure what should happen by setti
 
 - iptables - allow SSH only: `/sbin/iptables -A INPUT -i lo -j ACCEPT; /sbin/iptables -A INPUT -p tcp -m tcp --dport 22 -j ACCEPT; /sbin/iptables -A INPUT -j DROP;` `/sbin/iptables -A OUTPUT -o lo -j ACCEPT; /sbin/iptables -A OUTPUT -p tcp --sport 22 -m state --state ESTABLISHED -j ACCEPT; /sbin/iptables -A OUTPUT -j DROP;`
 
+- nftables:
+
+```
+  /sbin/nft "flush ruleset; add table ip filter;";
+  /sbin/nft "add chain ip filter INPUT \{ type filter hook forward priority 0; drop; \}"
+  /sbin/nft "add chain ip filter FORWARD \{ type filter hook forward priority 0; drop; \}";
+  /sbin/nft "add chain ip filter OUTPUT \{ type filter hook forward priority 0; drop; \}";
+  /sbin/nft "add rule ip filter INPUT iifname lo accept; state \{established,related\} accept;";
+  /sbin/nft "add rule ip filter INPUT tcp dport 220 accept; reject;";
+  /sbin/nft "add rule ip filter OUTPUT iifname lo accept;";
+```
+
 - stop network: `/etc/init.d/network* stop || /usr/sbin/service network stop || /usr/sbin/service networking stop || systemctl stop network*;`
 
 - shutdown: `/sbin/shutdown -h 5 TrafficLimit hit && sleep 360;`
