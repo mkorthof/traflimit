@@ -2,7 +2,7 @@
 
 ## Limits amount of bandwidth that can be used by host
 
-This script will help you limit the amount of bandwidth that you consume on a bm/vm/vps so that you can predict/budget bandwidth fees while using Public Cloud services from providers such as AWS, IBM, MS Azure or Rackspace etc which bill based on bandwidth utilization.
+This script will help you limit the amount of bandwidth that you consume on an VM, BM or VPS. The idea is you can predict and budget bandwidth fees while using Public Cloud services. Specially using providers such as AWS, IBM, MS Azure or Vultr etc which bill based on bandwidth utilization (i.e. egress traffic).
 
 **Features:**
 
