@@ -102,9 +102,9 @@ runcmdas() {
 getusage() {
 	if [ "$JSON" -eq 1 ]; then
 		if [ "$VNSTATVER" -eq 1 ]; then
-			DIV="/1024"
+			DIV="1024"
 		else
-			DIV="/1024/1024"
+			DIV="1024/1024"
 		fi
 		DATA="$(runcmdas "$VNSTATBIN -i $INTERFACE --json m")"
 		if echo $DATA | grep -Eq "^Error:"; then
@@ -115,12 +115,12 @@ getusage() {
 			TMP_IN="$(echo "$DATA" | jq '.interfaces|.[]|.traffic|.month//.months|.[-1].rx')"
 			TMP_OUT="$(echo "$DATA" | jq '.interfaces|.[]|.traffic|.month//.months|.[-1].tx')"
 		else
-			TMP="$(echo "$DATA" | sed -r 's/.*\{"id":[0-9],"date":\{"year":[0-9]{4},"month":[0-9]+\},"rx":([0-9]+),"tx":([0-9]+)\}.*/\1 \2/')"
+			TMP="$(echo "$DATA" | sed -r 's/.*\{"id":[0-9],"date":\{"year":[0-9]{4},"month":[0-9]+\},.*"rx":([0-9]+),"tx":([0-9]+)\}.*/\1 \2/')"
 			TMP_IN="$(echo "$TMP" | cut -d' ' -f1)"
 			TMP_OUT="$(echo "$TMP" | cut -d' ' -f2)"
 		fi
-		INCOMING="$((TMP_IN${DIV}))"
-		OUTGOING="$((TMP_OUT${DIV}))"
+		INCOMING="$((TMP_IN / DIV))"
+		OUTGOING="$((TMP_OUT / DIV))"
 	else
 		DATA="$(runcmdas "$VNSTATBIN --dumpdb -i $INTERFACE | grep 'm;0'")"
 		INCOMING="$(echo "$DATA" | cut -d\; -f4)"
